@@ -18,6 +18,7 @@ class ApiAuthMiddleware
     public function handle(Request $request, Closure $next): Response
     {
         $token = $request->header('Authorization');
+        $token = str_replace('Bearer ', '', $token);
         $authenticate = true;
 
         if (!$token) {
