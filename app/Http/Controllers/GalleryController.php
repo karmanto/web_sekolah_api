@@ -23,21 +23,27 @@ class GalleryController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'title'      => 'required|string',
-            'date'       => 'required|date',
-            'images'     => 'required|array',
-            'images.*'   => 'image|max:2048',
+            'title'        => 'required|string',
+            'date'         => 'required|date',
+            'images'       => 'required|array',
+            'images.*'     => 'image|max:2048',
+            'descriptions' => 'nullable|array',
+            'descriptions.*' => 'nullable|string',
         ]);
 
         $gallery = Gallery::create($request->only(['title', 'date']));
 
-        foreach ($request->file('images') as $file) {
+        $files = $request->file('images');
+        $descs = $request->input('descriptions', []);
+
+        foreach ($files as $i => $file) {
             $path = $file->store('gallery', 'public');
             $gallery->images()->create([
-                'image' => $path,
+                'image'       => $path,
+                'description' => $descs[$i] ?? null,
             ]);
         }
-        
+
         $gallery->load('images');
         return response()->json($gallery, 201);
     }
@@ -47,23 +53,30 @@ class GalleryController extends Controller
         $gallery = Gallery::findOrFail($id);
 
         $request->validate([
-            'title'      => 'sometimes|required|string',
-            'date'       => 'sometimes|required|date',
-            'images'     => 'nullable|array',
-            'images.*'   => 'image|max:2048',
+            'title'         => 'sometimes|required|string',
+            'date'          => 'sometimes|required|date',
+            'images'        => 'nullable|array',
+            'images.*'      => 'image|max:2048',
+            'descriptions'  => 'nullable|array',
+            'descriptions.*'=> 'nullable|string',
         ]);
 
         $gallery->update($request->only(['title', 'date']));
 
         if ($request->hasFile('images')) {
-            foreach ($gallery->images as $img) {
+            $gallery->images->each(function($img){
                 Storage::disk('public')->delete($img->image);
                 $img->delete();
-            }
-            foreach ($request->file('images') as $file) {
+            });
+
+            $files = $request->file('images');
+            $descs = $request->input('descriptions', []);
+
+            foreach ($files as $i => $file) {
                 $path = $file->store('gallery', 'public');
                 $gallery->images()->create([
-                    'image' => $path,
+                    'image'       => $path,
+                    'description' => $descs[$i] ?? null,
                 ]);
             }
         }
@@ -76,9 +89,9 @@ class GalleryController extends Controller
     {
         $gallery = Gallery::with('images')->findOrFail($id);
 
-        foreach ($gallery->images as $img) {
+        $gallery->images->each(function($img){
             Storage::disk('public')->delete($img->image);
-        }
+        });
 
         $gallery->delete();
 
