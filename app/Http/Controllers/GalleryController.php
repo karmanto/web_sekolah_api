@@ -2,40 +2,43 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Gallery;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class GalleryController extends Controller
 {
     public function index()
     {
-        $galleries = Gallery::all();
+        $galleries = Gallery::with('images')->get();
         return response()->json($galleries);
     }
 
     public function show($id)
     {
-        $gallery = Gallery::findOrFail($id);
+        $gallery = Gallery::with('images')->findOrFail($id);
         return response()->json($gallery);
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'title' => 'required|string',
-            'date'  => 'required|date',
-            'image' => 'required|image|max:2048'
+            'title'      => 'required|string',
+            'date'       => 'required|date',
+            'images'     => 'required|array',
+            'images.*'   => 'image|max:2048',
         ]);
 
-        $data = $request->only(['title', 'date']);
+        $gallery = Gallery::create($request->only(['title', 'date']));
 
-        if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('gallery', 'public');
-            $data['image'] = $path;
+        foreach ($request->file('images') as $file) {
+            $path = $file->store('gallery', 'public');
+            $gallery->images()->create([
+                'image' => $path,
+            ]);
         }
-
-        $gallery = Gallery::create($data);
+        
+        $gallery->load('images');
         return response()->json($gallery, 201);
     }
 
@@ -44,32 +47,41 @@ class GalleryController extends Controller
         $gallery = Gallery::findOrFail($id);
 
         $request->validate([
-            'title' => 'sometimes|required|string',
-            'date'  => 'sometimes|required|date',
-            'image' => 'nullable|image|max:2048'
+            'title'      => 'sometimes|required|string',
+            'date'       => 'sometimes|required|date',
+            'images'     => 'nullable|array',
+            'images.*'   => 'image|max:2048',
         ]);
 
-        $data = $request->only(['title', 'date']);
+        $gallery->update($request->only(['title', 'date']));
 
-        if ($request->hasFile('image')) {
-            if ($gallery->image) {
-                Storage::disk('public')->delete($gallery->image);
+        if ($request->hasFile('images')) {
+            foreach ($gallery->images as $img) {
+                Storage::disk('public')->delete($img->image);
+                $img->delete();
             }
-            $path = $request->file('image')->store('gallery', 'public');
-            $data['image'] = $path;
+            foreach ($request->file('images') as $file) {
+                $path = $file->store('gallery', 'public');
+                $gallery->images()->create([
+                    'image' => $path,
+                ]);
+            }
         }
 
-        $gallery->update($data);
+        $gallery->load('images');
         return response()->json($gallery);
     }
 
     public function destroy($id)
     {
-        $gallery = Gallery::findOrFail($id);
-        if ($gallery->image) {
-            Storage::disk('public')->delete($gallery->image);
+        $gallery = Gallery::with('images')->findOrFail($id);
+
+        foreach ($gallery->images as $img) {
+            Storage::disk('public')->delete($img->image);
         }
+
         $gallery->delete();
+
         return response()->json(['message' => 'Gallery deleted']);
     }
 }

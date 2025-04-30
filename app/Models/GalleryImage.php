@@ -5,16 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Gallery extends Model
+class GalleryImage extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'title', 'date',
+        'gallery_id', 'image',
     ];
 
-    public function images()
+    public function gallery()
     {
-        return $this->hasMany(GalleryImage::class);
+        return $this->belongsTo(Gallery::class);
     }
 }
